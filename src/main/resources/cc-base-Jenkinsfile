@@ -1,0 +1,74 @@
+node {
+    def workspaceDir = 'D:/Jenkins/workspace'
+    def sharedStorage = 'S:'
+    def jdkPath = 'C:/jdk-11.0.16+8'
+    properties([
+            pipelineTriggers([cron('0 07 * * *')]),
+            parameters([
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'BASE_BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*destiny-base.git'
+                    ),
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'DB_SCRIPTS_BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*destiny-dbscripts.git'
+                    )
+            ])
+    ])
+    stage('Clone Base') {
+        dir('destiny-base') {
+            git branch: "${params.BASE_BRANCH}", credentialsId: 'bitbucket-build-op', url: 'git@bitbucket.org:nxtlbs-devops/destiny-base.git'
+        }
+    }
+    stage('Clone Database Scripts') {
+        dir('destiny-dbscripts') {
+            git branch: "${params.DB_SCRIPTS_BRANCH}", credentialsId: 'bitbucket-build-op', url: 'git@bitbucket.org:nxtlbs-devops/destiny-dbscripts.git'
+        }
+    }
+    stage('SonarQube') {
+        def sonarQubeJdkPath = (isUnix() ? '/opt/' : 'C:/') + 'jdk-11.0.9+11'
+        dir('cc-common-libraries') {
+            try {
+                sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${sonarQubeJdkPath} sonarqube"
+            } catch (Exception e) {
+                echo "Error in running SonarQube"
+            }
+        }
+    }
+    withEnv(["NLEXTERNALDIR=${sharedStorage}/build/P4/source_external",
+             "NLEXTERNALDIR2=${sharedStorage}/build/P4/source_main_external",
+             "JAVA_HOME=${jdkPath}",
+             "DESTINY_DBSCRIPTS=${workspaceDir}/cc-base/destiny-dbscripts",
+             "DESTINY_OPENAZ_NODEJS_SRC_TREE_ROOT=${workspaceDir}/source_destiny-openaz-nodejs_Nimbus_release_8.7.0",
+    ]) {
+        stage('Build Base') {
+            buildScriptFileName = 'buildPcv'
+            if (params.BASE_BRANCH.startsWith('release') || params.BASE_BRANCH.startsWith('hotfix')) {
+                buildScriptFileName = 'buildRelease'
+            }
+            dir('destiny-base') {
+                sh "chmod +x ./${buildScriptFileName} && source ./setEnv && ./${buildScriptFileName}"
+            }
+        }
+    }
+}

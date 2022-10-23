@@ -1,0 +1,292 @@
+import java.nio.file.Files
+import java.nio.file.Paths
+
+node {
+    properties([
+            parameters([
+                    string(defaultValue: 'develop', description: 'Version will be changed in this branch', name: 'BRANCH', trim: true),
+                    string(defaultValue: '', description: 'Version', name: 'VERSION', trim: true),
+                    string(defaultValue: 'CC-5527', description: 'Jira Id for version change commit message', name: 'JIRA_ID', trim: true),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_APP_HOME'),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_APP_HOME_UI'),
+                    booleanParam(defaultValue: true, description: '', name: 'BASE'),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_HELM_CHART'),
+                    booleanParam(defaultValue: true, description: '', name: 'CLOUDAZ_HELM_CHART'),
+                    booleanParam(defaultValue: true, description: '', name: 'COMMON_LIBRARIES'),
+                    booleanParam(defaultValue: true, description: '', name: 'CONSOLE_ELASTICSEARCH'),
+                    booleanParam(defaultValue: true, description: '', name: 'CONSOLE_UI'),
+                    booleanParam(defaultValue: true, description: '', name: 'DB_SCRIPTS'),
+                    booleanParam(defaultValue: true, description: '', name: 'ICENET_CONTAINER'),
+                    booleanParam(defaultValue: true, description: '', name: 'JPC_INSTALLER'),
+                    booleanParam(defaultValue: true, description: '', name: 'MANAGEMENT_SERVER_CONTAINER'),
+                    booleanParam(defaultValue: true, description: '', name: 'POLICY_CONTROLLER_MANAGER'),
+                    booleanParam(defaultValue: true, description: '', name: 'POLICY_CONTROLLER_MANAGER_UI'),
+                    booleanParam(defaultValue: true, description: '', name: 'POLICY_VALIDATOR'),
+                    booleanParam(defaultValue: true, description: '', name: 'SERVER_APPS'),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_SERVICE_MANAGER'),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_SERVICE_MANAGER_UI')
+            ])
+    ])
+    stage('Clean') {
+        cleanWs()
+    }
+    stage('cc-app-home') {
+        if (params.CC_APP_HOME) {
+            dir('cc-app-home') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-app-home.git'
+                    replace('cc-app-home', 'gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('cc-app-home', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing cc-app-home version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cc-app-home-ui') {
+        if (params.CC_APP_HOME_UI) {
+            dir('cc-app-home-ui') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-app-home-ui.git'
+                    replace('cc-app-home-ui', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing cc-app-home-ui version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('base') {
+        if (params.BASE) {
+            dir('destiny-base') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/destiny-base.git'
+                    replace('destiny-base', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    def sections = params.VERSION.split('\\.')
+                    def majorVersion = sections[0]
+                    def minerVersion = Integer.parseInt(sections[1])
+                    def maintenanceVersion = sections.length > 2 ? sections[2] : 0
+                    replace('destiny-base', 'configure', '(?m)^VERSION_MAJOR([ \t]*)=.*', "VERSION_MAJOR=${majorVersion}")
+                    replace('destiny-base', 'configure', '(?m)^VERSION_MINOR([ \t]*)=.*', "VERSION_MINOR=${minerVersion}")
+                    replace('destiny-base', 'configure', '(?m)^VERSION_MAINTENANCE([ \t]*)=.*', "VERSION_MAINTENANCE=${maintenanceVersion}")
+                    sh "git add gradle.properties configure && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing base version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cc-helm-chart') {
+        if (params.CC_HELM_CHART) {
+            dir('cc-helm-chart') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-helm-chart.git'
+                    replace('cc-helm-chart', 'gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing cc-helm-chart version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cloudaz-helm-chart') {
+        if (params.CLOUDAZ_HELM_CHART) {
+            dir('cc-cloudaz-helm-chart') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-cloudaz-helm-chart.git'
+                    replace('cc-cloudaz-helm-chart', 'gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('cc-cloudaz-helm-chart', 'helm-chart/Chart.yaml', 'version([ \t]*):.*', "version: \"${VERSION}\"")
+                    sh "git add gradle.properties helm-chart/Chart.yaml && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing cloudaz-helm-chart version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('common-libraries') {
+        if (params.COMMON_LIBRARIES) {
+            dir('cc-common-libraries') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-common-libraries.git'
+                    replace('cc-common-libraries', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing common-libraries version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('console-elasticsearch') {
+        if (params.CONSOLE_ELASTICSEARCH) {
+            dir('cc-console-elasticsearch') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-console-elasticsearch.git'
+                    replace('cc-console-elasticsearch', 'gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing console-elasticsearch version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('icenet-container') {
+        if (params.ICENET_CONTAINER) {
+            dir('cc-icenet-container') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-icenet-container.git'
+                    replace('cc-icenet-container', 'gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('cc-icenet-container', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing icenet-container version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('jpc-installer') {
+        if (params.JPC_INSTALLER) {
+            dir('destiny-installer') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/destiny-installer.git'
+                    replace('destiny-installer', 'dependency-management-helper/gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    def sections = params.VERSION.split('\\.')
+                    def majorVersion = sections[0]
+                    def minerVersion = Integer.parseInt(sections[1])
+                    def maintenanceVersion = sections.length > 2 ? sections[2] : 0
+                    replace('destiny-installer', 'configure', '(?m)^VERSION_MAJOR([ \t]*)=.*', "VERSION_MAJOR=${majorVersion}")
+                    replace('destiny-installer', 'configure', '(?m)^VERSION_MINOR([ \t]*)=.*', "VERSION_MINOR=${minerVersion}")
+                    replace('destiny-installer', 'configure', '(?m)^VERSION_MAINTENANCE([ \t]*)=.*', "VERSION_MAINTENANCE=${maintenanceVersion}")
+                    replace('destiny-installer', 'configure', '(?m)^PRODUCT_VERSION_STR([ \t]*)=.*', "PRODUCT_VERSION_STR=\"${VERSION}\"")
+                    sh "git add dependency-management-helper/gradle.properties configure && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing jpc-installer version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('management-server-container') {
+        if (params.MANAGEMENT_SERVER_CONTAINER) {
+            dir('cc-management-server-container') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-management-server-container.git'
+                    replace('cc-management-server-container', 'gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('cc-management-server-container', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing management-server-container version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('policy-controller-manager') {
+        if (params.POLICY_CONTROLLER_MANAGER) {
+            dir('policy-controller-manager') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/policy-controller-manager.git'
+                    replace('policy-controller-manager', 'gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('policy-controller-manager', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing policy-controller-manager version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('policy-controller-manager-ui') {
+        if (params.POLICY_CONTROLLER_MANAGER_UI) {
+            dir('policy-controller-manager-ui') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/policy-controller-manager-ui.git'
+                    replace('policy-controller-manager-ui', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing policy-controller-manager-ui version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('policy-validator') {
+        if (params.POLICY_VALIDATOR) {
+            dir('restpolicyvalidator') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/restpolicyvalidator.git'
+                    replace('restpolicyvalidator', 'gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('restpolicyvalidator', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing policy-validator version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('server-apps') {
+        if (params.SERVER_APPS) {
+            dir('destiny-serverapps') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/destiny-serverapps.git'
+                    replace('destiny-serverapps', 'src/server/apps/gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    replace('destiny-serverapps', 'src/server/apps/cas-extension/gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('destiny-serverapps', 'src/server/apps/cc-console/gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('destiny-serverapps', 'src/server/apps/config-service/gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('destiny-serverapps', 'src/server/apps/inquiryCenter/gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('destiny-serverapps', 'src/server/apps/mgmtConsole/gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('destiny-serverapps', 'src/server/apps/installer/gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    sh "git add src/server/apps/gradle.properties src/server/apps/cas-extension/gradle.properties src/server/apps/cc-console/gradle.properties src/server/apps/config-service/gradle.properties src/server/apps/inquiryCenter/gradle.properties src/server/apps/mgmtConsole/gradle.properties src/server/apps/installer/gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing server-apps version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cc-service-manager') {
+        if (params.CC_SERVICE_MANAGER) {
+            dir('cc-service-manager') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-service-manager.git'
+                    replace('cc-service-manager', 'gradle.properties', '(?m)^appVersion([ \t]*)=.*', "appVersion=${VERSION}")
+                    replace('cc-service-manager', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing cc-service-manager version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cc-service-manager-ui') {
+        if (params.CC_SERVICE_MANAGER_UI) {
+            dir('cc-service-manager-ui') {
+                try {
+                    git branch: "${BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-service-manager-ui.git'
+                    replace('cc-service-manager-ui', 'gradle.properties', '(?m)^version([ \t]*)=.*', "version=${VERSION}-SNAPSHOT")
+                    sh "git add gradle.properties && git commit -m \"${JIRA_ID}: Change version to ${VERSION}\""
+                    sh "git push origin ${BRANCH}"
+                } catch (Exception e) {
+                    echo 'Error in changing cc-service-manager-ui version: ' + e.getMessage()
+                }
+            }
+        }
+    }
+}
+
+@com.cloudbees.groovy.cps.NonCPS
+def replace(String repository, String filePath, String regex, String replacement) {
+    def gradlePropertiesFilePath = Paths.get('/var/lib/jenkins/workspace/cc-change-version', repository, filePath)
+    Files.write(gradlePropertiesFilePath, new String(Files.readAllBytes(gradlePropertiesFilePath))
+            .replaceAll(regex, replacement).getBytes())
+}

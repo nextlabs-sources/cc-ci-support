@@ -1,0 +1,59 @@
+node {
+    def jdkPath = (isUnix() ? '/opt/' : 'C:/') + 'jdk-11.0.9+11'
+    properties([
+            parameters([
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*cc-pdp-plugin-manager.git'
+                    ),
+            ])
+    ])
+    stage('Clone Repository') {
+        dir('cc-pdp-plugin-manager') {
+            git branch: "${params.BRANCH}", credentialsId: 'bitbucket-build-op', url: 'git@bitbucket.org:nxtlbs-devops/cc-pdp-plugin-manager.git'
+        }
+    }
+    stage('Build') {
+        dir('cc-pdp-plugin-manager') {
+            sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :pdp-plugin-manager-common:clean :pdp-plugin-manager-common:build"
+            sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :pdp-plugin-manager-client:clean :pdp-plugin-manager-client:build"
+            sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :pdp-plugin-manager-server:clean :pdp-plugin-manager-server:build"
+        }
+    }
+    stage('SonarQube') {
+        dir('cc-pdp-plugin-manager') {
+            try {
+                sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :pdp-plugin-manager-common:sonarqube"
+                sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :pdp-plugin-manager-client:sonarqube"
+                sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :pdp-plugin-manager-server:sonarqube"
+            } catch (Exception e) {
+                echo "Error in running SonarQube"
+            }
+        }
+    }
+    stage('Publish') {
+        buildPublishLocation = null
+        if (params.BRANCH == 'develop') {
+            buildPublishLocation = '/mnt/windowsshares/sv-fsrv02.nextlabs.com/build/pcv'
+        } else if (params.BRANCH.startsWith('release') || params.BRANCH.startsWith('hotfix')) {
+            buildPublishLocation = '/mnt/windowsshares/sv-fsrv02.nextlabs.com/build/release_candidate'
+        }
+        dir('cc-pdp-plugin-manager') {
+            if (buildPublishLocation != null) {
+                sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} -PbuildPublishLocation=${buildPublishLocation} :pdp-plugin-manager-client:publishBuild"
+            }
+            sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :pdp-plugin-manager-client:artifactoryPublish"
+            sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :pdp-plugin-manager-server:artifactoryPublish"
+        }
+    }
+}

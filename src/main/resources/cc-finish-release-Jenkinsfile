@@ -1,0 +1,293 @@
+node {
+    properties([
+            parameters([
+                    booleanParam(defaultValue: true, description: '', name: 'MERGE_TO_DEVELOP_BRANCH'),
+                    booleanParam(defaultValue: true, description: '', name: 'MERGE_TO_MASTER_BRANCH'),
+                    booleanParam(defaultValue: true, description: '', name: 'TAG_MASTER_BRANCH'),
+                    string(defaultValue: 'release/', description: '', name: 'RELEASE_BRANCH', trim: true),
+                    string(defaultValue: '', description: 'Tag name', name: 'VERSION', trim: true),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_APP_HOME'),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_APP_HOME_UI'),
+                    booleanParam(defaultValue: true, description: '', name: 'BASE'),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_CONTAINER_BUILD'),
+                    booleanParam(defaultValue: true, description: '', name: 'JPC_CONTAINER_BUILD'),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_HELM_CHART'),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_SERVICE_MANAGER'),
+                    booleanParam(defaultValue: true, description: '', name: 'CC_SERVICE_MANAGER_UI'),
+                    booleanParam(defaultValue: true, description: '', name: 'CLOUDAZ_HELM_CHART'),
+                    booleanParam(defaultValue: true, description: '', name: 'COMMON_LIBRARIES'),
+                    booleanParam(defaultValue: true, description: '', name: 'CONSOLE_ELASTICSEARCH'),
+                    booleanParam(defaultValue: true, description: '', name: 'CONSOLE_UI'),
+                    booleanParam(defaultValue: true, description: '', name: 'DB_SCRIPTS'),
+                    booleanParam(defaultValue: true, description: '', name: 'ICENET_CONTAINER'),
+                    booleanParam(defaultValue: true, description: '', name: 'JPC_INSTALLER'),
+                    booleanParam(defaultValue: true, description: '', name: 'MANAGEMENT_SERVER_CONTAINER'),
+                    booleanParam(defaultValue: true, description: '', name: 'POLICY_CONTROLLER_MANAGER'),
+                    booleanParam(defaultValue: true, description: '', name: 'POLICY_CONTROLLER_MANAGER_UI'),
+                    booleanParam(defaultValue: true, description: '', name: 'POLICY_VALIDATOR'),
+                    booleanParam(defaultValue: true, description: '', name: 'SERVER_APPS')
+            ])
+    ])
+    stage('Clean') {
+        cleanWs()
+    }
+    stage('cc-app-home') {
+        if (params.CC_APP_HOME) {
+            dir('cc-app-home') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-app-home.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing cc-app-home release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cc-app-home-ui') {
+        if (params.CC_APP_HOME_UI) {
+            dir('cc-app-home-ui') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-app-home-ui.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing cc-app-home-ui release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('base') {
+        if (params.BASE) {
+            dir('destiny-base') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/destiny-base.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing base release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cc-container-build') {
+        if (params.CC_CONTAINER_BUILD) {
+            dir('cc-container-build') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/devops-build-cc-docker.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing cc-container-build release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('jpc-container-build') {
+        if (params.JPC_CONTAINER_BUILD) {
+            dir('jpc-container-build') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/devops-build-jpc-docker.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing jpc-container-build release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cc-helm-chart') {
+        if (params.CC_HELM_CHART) {
+            dir('cc-helm-chart') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-helm-chart.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing cc-helm-chart release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cc-service-manager') {
+        if (params.CC_SERVICE_MANAGER) {
+            dir('cc-service-manager') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-service-manager.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing cc-service-manager release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cc-service-manager-ui') {
+        if (params.CC_SERVICE_MANAGER_UI) {
+            dir('cc-service-manager-ui') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-service-manager-ui.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing cc-service-manager-ui release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('cloudaz-helm-chart') {
+        if (params.CLOUDAZ_HELM_CHART) {
+            dir('cc-cloudaz-helm-chart') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-cloudaz-helm-chart.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing cloudaz-helm-chart release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('common-libraries') {
+        if (params.COMMON_LIBRARIES) {
+            dir('cc-common-libraries') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-common-libraries.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing common-libraries release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('console-elasticsearch') {
+        if (params.CONSOLE_ELASTICSEARCH) {
+            dir('cc-console-elasticsearch') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-console-elasticsearch.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing console-elasticsearch release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('console-ui') {
+        if (params.CONSOLE_UI) {
+            dir('destiny-ui') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/destiny-ui.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing console-ui release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('db-scripts') {
+        if (params.DB_SCRIPTS) {
+            dir('destiny-dbscripts') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/destiny-dbscripts.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing db-scripts release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('icenet-container') {
+        if (params.ICENET_CONTAINER) {
+            dir('cc-icenet-container') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-icenet-container.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing icenet-container release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('jpc-installer') {
+        if (params.JPC_INSTALLER) {
+            dir('destiny-installer') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/destiny-installer.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing jpc-installer release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('management-server-container') {
+        if (params.MANAGEMENT_SERVER_CONTAINER) {
+            dir('cc-management-server-container') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/cc-management-server-container.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing management-server-container release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('policy-controller-manager') {
+        if (params.POLICY_CONTROLLER_MANAGER) {
+            dir('policy-controller-manager') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/policy-controller-manager.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing policy-controller-manager release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('policy-controller-manager-ui') {
+        if (params.POLICY_CONTROLLER_MANAGER_UI) {
+            dir('policy-controller-manager-ui') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/policy-controller-manager-ui.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing policy-controller-manager-ui release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('policy-validator') {
+        if (params.POLICY_VALIDATOR) {
+            dir('restpolicyvalidator') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/restpolicyvalidator.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing policy-validator release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+    stage('server-apps') {
+        if (params.SERVER_APPS) {
+            dir('destiny-serverapps') {
+                try {
+                    git branch: "${RELEASE_BRANCH}", url: 'git@bitbucket.org:nxtlbs-devops/destiny-serverapps.git'
+                    finishRelease()
+                } catch (Exception e) {
+                    echo 'Error in finishing server-apps release: ' + e.getMessage()
+                }
+            }
+        }
+    }
+}
+
+def finishRelease() {
+    sh 'git fetch'
+    if (params.MERGE_TO_DEVELOP_BRANCH) {
+        sh 'git checkout develop'
+        sh "git merge ${RELEASE_BRANCH}"
+        sh "git push origin develop"
+    }
+    if (params.MERGE_TO_MASTER_BRANCH) {
+        sh 'git checkout master'
+        sh "git merge ${RELEASE_BRANCH}"
+        sh "git push origin master"
+    }
+    if (params.TAG_MASTER_BRANCH) {
+        sh 'git checkout master'
+        sh "git tag ${VERSION}"
+        sh "git push origin ${VERSION}"
+    }
+}

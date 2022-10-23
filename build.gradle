@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+repositories {
+    maven {
+        url "${artifactoryContextUrl}/libs-release"
+        credentials {
+            username = artifactoryUser
+            password = artifactoryPassword
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.9'
+    implementation 'com.jcraft:jsch:0.1.55'
+    implementation 'org.apache.commons:commons-lang3:3.9'
+    testImplementation 'junit:junit:4.12'
+}
+
+mainClassName = 'com.nextlabs.common.cc.cisupport.Runner'
+
+application {
+    //applicationDefaultJvmArgs = ["-Dtask=${task}", "-Dfile=${file}", "-DenvironmentGroup=${environmentGroup}"]
+}

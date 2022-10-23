@@ -1,0 +1,55 @@
+node {
+    def helmChartRepositoryName = "nextlabs-control-center-helm-chart-repository"
+    def helmLocation = '/usr/local/bin/'
+
+    properties([
+            parameters([
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*cc-helm-chart.git'
+                    )
+            ])
+    ])
+    stage('Clone Repository') {
+        dir('cc-helm-chart') {
+            git branch: "${params.BRANCH}",
+                    credentialsId: 'bitbucket-build-op',
+                    url: 'git@bitbucket.org:nxtlbs-devops/cc-helm-chart.git'
+        }
+    }
+    stage('Build') {
+        try {
+            dir('cc-helm-chart') {
+                withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: 'helmChartRepositoryCredential', usernameVariable: 'helmChartRepositoryUsername', passwordVariable: 'helmChartRepositoryPassword']]) {
+                    sh "chmod +x ./gradlew && ./gradlew -PhelmLocation=${helmLocation} -PhelmChartRepositoryUsername=${helmChartRepositoryUsername} -PhelmChartRepositoryPassword=\"${helmChartRepositoryPassword}\" -PhelmChartRepositoryName=${helmChartRepositoryName} clean build copyHelmChart helmRepoUpdate helmDependencyUpdate packageHelmChart publishHelmChart"
+                }
+            }
+        } finally {
+            jiraSendBuildInfo site: 'nextlabs.atlassian.net', branch: getChangeIds()
+        }
+    }
+}
+
+def getChangeIds() {
+    Set<String> issueIdSet = []
+    def build = currentBuild
+    while (build != null && build.result != 'SUCCESS') {
+        build.changeSets.each { changeSet ->
+            changeSet.items.each { changeSetItem -> issueIdSet.add(changeSetItem.msg.split("[:\\s]")[0]) }
+        }
+        build = build.previousBuild
+    }
+    def issueIds = issueIdSet.join(" ")
+    println "Issue Ids found since the last successful build job: ${issueIds}"
+    return issueIds
+}

@@ -1,0 +1,130 @@
+node {
+    def containerRegistryURL = 'registry.nextlabs.com/platform'
+    def k8sApiHost = 'https://k8s.nextlabs.com'
+    def appName = 'nextlabs-policy-validator'
+    def k8sDeploymentReplicas = 1
+    def helmChartRepositoryName = "nextlabs-control-center-helm-chart-repository"
+    def helmLocation = '/usr/local/bin/'
+    def npmPath = '/usr/local/bin/npm'
+
+    properties([
+            parameters([
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*restpolicyvalidator.git'
+                    ),
+                    booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Deploy after build')
+            ])
+    ])
+    stage('Clone Repository') {
+        dir('policy-validator') {
+            git branch: "${params.BRANCH}",
+                    credentialsId: 'bitbucket-build-op',
+                    url: 'git@bitbucket.org:nxtlbs-devops/restpolicyvalidator.git'
+        }
+    }
+    stage('Build') {
+        try {
+            dir('policy-validator') {
+                sh "chmod +x ./gradlew && ./gradlew -x test -PnpmPath=${npmPath} -PbuildNumber=${env.BUILD_NUMBER} -PcontainerRegistryURL=${containerRegistryURL} -PhelmLocation=${helmLocation} clean build buildPackage changePermission buildContainer packageHelmChart"
+                
+            }
+        } finally {
+            jiraSendBuildInfo site: 'nextlabs.atlassian.net', branch: getChangeIds()
+        }
+    }
+    stage('Publish') {
+        dir('policy-validator') {
+            sh "chmod +x ./gradlew && ./gradlew -x test -PbuildNumber=${env.BUILD_NUMBER} artifactoryPublish"
+            sh "chmod +x ./gradlew && ./gradlew -x test -PbuildNumber=${env.BUILD_NUMBER} -PcontainerRegistryURL=${containerRegistryURL} publishContainer"
+            withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: 'helmChartRepositoryCredential', usernameVariable: 'helmChartRepositoryUsername', passwordVariable: 'helmChartRepositoryPassword']]) {
+                sh "chmod +x ./gradlew && ./gradlew -PhelmLocation=${helmLocation} -PhelmChartRepositoryUsername=${helmChartRepositoryUsername} -PhelmChartRepositoryPassword=\"${helmChartRepositoryPassword}\" -PhelmChartRepositoryName=${helmChartRepositoryName} publishHelmChart"
+            }
+        }
+        buildPublishLocation = null
+        if (params.BRANCH == 'develop') {
+            buildPublishLocation = '/mnt/windowsshares/sv-fsrv02.nextlabs.com/build/pcv'
+        } else if (params.BRANCH.startsWith('release') || params.BRANCH.startsWith('hotfix')) {
+            buildPublishLocation = '/mnt/windowsshares/sv-fsrv02.nextlabs.com/build/release_candidate'
+        }
+        if (buildPublishLocation != null) {
+            dir('policy-validator') {
+                sh "chmod +x ./gradlew && ./gradlew -x test -PbuildPublishLocation=${buildPublishLocation} -PbuildNumber=${env.BUILD_NUMBER} publishBuild"
+            }
+        }
+    }
+    if (params.DEPLOY) {
+        stage('Deploy') {
+            println "Kubernets Server: ${k8sApiHost}"
+            def environmentId = 'control-center-'
+            def environmentName = 'Control Center '
+            def environmentType = 'development'
+            def k8sNamespace = 'control-center-'
+            def k8sDeployment = appName
+            if (params.BRANCH.startsWith('release')) {
+                k8sNamespace += 'release'
+                environmentId += 'release'
+                environmentName += 'Release'
+                environmentType = 'staging'
+                k8sDeployment = 'rel-' + k8sDeployment
+            } else if (params.BRANCH.startsWith('feature')) {
+                k8sNamespace += 'feature'
+                environmentId += 'feature'
+                environmentName += 'Feature'
+                environmentType = 'unmapped'
+                k8sDeployment = 'fea-' + k8sDeployment
+            } else {
+                k8sNamespace += 'develop'
+                environmentId += 'develop'
+                environmentName += 'Develop'
+                k8sDeployment = 'dev-' + k8sDeployment
+            }
+            try {
+                withCredentials([string(credentialsId: 'k8sToken', variable: 'k8sToken')]) {
+                    println "Scale ${k8sDeployment} deployment on ${k8sNamespace} namespace to 0"
+                    httpRequest httpMode: 'PATCH',
+                            url: "${k8sApiHost}/apis/apps/v1/namespaces/${k8sNamespace}/deployments/${k8sDeployment}/scale",
+                            customHeaders: [[name: 'Authorization', value: "Bearer ${k8sToken}"],
+                                            [name: 'Content-Type', value: 'application/json-patch+json']],
+                            requestBody: "[{\"op\": \"replace\", \"path\": \"/spec/replicas\", \"value\": 0}]"
+                    sleep 5
+                    println "Scale deployment ${k8sDeployment} in namespace ${k8sNamespace} to ${k8sDeploymentReplicas}"
+                    httpRequest httpMode: 'PATCH',
+                            url: "${k8sApiHost}/apis/apps/v1/namespaces/${k8sNamespace}/deployments/${k8sDeployment}/scale",
+                            customHeaders: [[name: 'Authorization', value: "Bearer ${k8sToken}"],
+                                            [name: 'Content-Type', value: 'application/json-patch+json']],
+                            requestBody: "[{\"op\": \"replace\", \"path\": \"/spec/replicas\", \"value\": ${k8sDeploymentReplicas}}]"
+                }
+            } finally {
+                jiraSendDeploymentInfo site: 'nextlabs.atlassian.net',
+                        environmentId: environmentId,
+                        environmentName: environmentName,
+                        environmentType: environmentType
+            }
+        }
+    }
+}
+
+def getChangeIds() {
+    Set<String> issueIdSet = []
+    def build = currentBuild
+    while (build != null && build.result != 'SUCCESS') {
+        build.changeSets.each { changeSet ->
+            changeSet.items.each { changeSetItem -> issueIdSet.add(changeSetItem.msg.split("[:\\s]")[0]) }
+        }
+        build = build.previousBuild
+    }
+    def issueIds = issueIdSet.join(" ")
+    println "Issue Ids found since the last successful build job: ${issueIds}"
+    return issueIds
+}

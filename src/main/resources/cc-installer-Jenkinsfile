@@ -1,0 +1,73 @@
+node {
+    def containerRegistryURL = 'registry.nextlabs.com/platform'
+    def helmChartRepositoryName = "nextlabs-control-center-helm-chart-repository"
+    def helmLocation = '/usr/local/bin/'
+    def npmPath = '/usr/local/bin/npm'
+    def ngPath = '/usr/bin/ng'
+
+    properties([
+            parameters([
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*destiny-serverapps.git'
+                    )
+            ])
+    ])
+    stage('Clone Repository') {
+        dir('destiny-serverapps') {
+            git branch: "${params.BRANCH}",
+                    credentialsId: 'bitbucket-build-op',
+                    url: 'git@bitbucket.org:nxtlbs-devops/destiny-serverapps.git'
+        }
+    }
+    stage('Build') {
+        try {
+            def gradleProperties = readProperties file: 'destiny-serverapps/src/server/apps/gradle.properties'
+            def jdkPath = (isUnix() ? '/opt/' : 'C:/') + (gradleProperties['sourceCompatibility'] == '11' ? 'jdk-11.0.9+11' : 'jdk8u272-b10')
+            dir('destiny-serverapps/src/server/apps') {
+                sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} -PngPath=${ngPath} -PnpmPath=${npmPath} -PbuildNumber=${env.BUILD_NUMBER} -PcontainerRegistryURL=${containerRegistryURL} -PcontainerBuild=true :server-installer:clean :server-installer:build :server-installer:buildPackage :server-installer:buildContainerPackage :server-installer:buildContainer :server-installer:publishContainer"
+            }
+            dir('destiny-serverapps/src/server/apps') {
+                withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: 'helmChartRepositoryCredential', usernameVariable: 'helmChartRepositoryUsername', passwordVariable: 'helmChartRepositoryPassword']]) {
+                    sh "chmod +x ./gradlew && ./gradlew -PhelmLocation=${helmLocation} -PhelmChartRepositoryUsername=${helmChartRepositoryUsername} -PhelmChartRepositoryPassword=\"${helmChartRepositoryPassword}\" -PhelmChartRepositoryName=${helmChartRepositoryName} :server-installer:packageHelmChart :server-installer:publishHelmChart"
+                }
+            }
+        } finally {
+            jiraSendBuildInfo site: 'nextlabs.atlassian.net', branch: getChangeIds()
+        }
+    }
+    stage('SonarQube') {
+        def sonarQubeJdkPath = (isUnix() ? '/opt/' : 'C:/') + 'jdk-11.0.9+11'
+        dir('destiny-serverapps/src/server/apps') {
+            try {
+                sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${sonarQubeJdkPath} :server-installer:sonarqube"
+            } catch (Exception ignored) {
+                echo "Error in running SonarQube"
+            }
+        }
+    }
+}
+
+def getChangeIds() {
+    Set<String> issueIdSet = []
+    def build = currentBuild
+    while (build != null && build.result != 'SUCCESS') {
+        build.changeSets.each { changeSet ->
+            changeSet.items.each { changeSetItem -> issueIdSet.add(changeSetItem.msg.split("[:\\s]")[0]) }
+        }
+        build = build.previousBuild
+    }
+    def issueIds = issueIdSet.join(" ")
+    println "Issue Ids found since the last successful build job: ${issueIds}"
+    return issueIds
+}

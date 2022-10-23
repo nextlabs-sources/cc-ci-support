@@ -1,0 +1,47 @@
+node {
+    properties([
+            parameters([
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*cc-common-libraries.git'
+                    ),
+            ])
+    ])
+    stage('Clone Repository') {
+        dir('cc-common-libraries') {
+            git branch: "${params.BRANCH}", credentialsId: 'bitbucket-build-op', url: 'git@bitbucket.org:nxtlbs-devops/cc-common-libraries.git'
+        }
+    }
+    stage('Build') {
+        def gradleProperties = readProperties file: 'cc-common-libraries/gradle.properties'
+        def jdkPath = (isUnix() ? '/opt/' : 'C:/') + (gradleProperties['sourceCompatibility'] == '11' ? 'jdk-11.0.9+11' : 'jdk8u272-b10')
+        //def jdkPath = '/opt/jdk-11.0.9+11'
+        echo "jdkPath=${jdkPath}"   
+        
+        dir('cc-common-libraries') {
+            sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :cc-common:clean :cc-common:build :cc-common:artifactoryPublish"
+            sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :log-manager:clean :log-manager:build :log-manager:artifactoryPublish"
+            sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} :config-client:clean :config-client:build :config-client:artifactoryPublish"
+        }
+    }
+    stage('SonarQube') {
+        def sonarQubeJdkPath = (isUnix() ? '/opt/' : 'C:/') + 'jdk-11.0.9+11'
+        dir('cc-common-libraries') {
+            try {
+                sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${sonarQubeJdkPath} sonarqube"
+            } catch (Exception e) {
+                echo "Error in running SonarQube"
+            }
+        }
+    }
+}

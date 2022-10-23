@@ -1,0 +1,46 @@
+node {
+    def workspaceDir = 'D:/Jenkins/workspace'
+    def sharedStorage = 'S:'
+    def jdkPath = 'C:/jdk-11.0.9+11'
+    properties([
+            pipelineTriggers([upstream('cc-server-apps')]),
+            parameters([
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*destiny-installer.git'
+                    )
+            ])
+    ])
+    stage('Clone JPC Installer') {
+        dir('destiny-installer') {
+            git branch: "${params.BRANCH}", credentialsId: 'bitbucket-build-op', url: 'git@bitbucket.org:nxtlbs-devops/destiny-installer.git'
+        }
+        def gradleProperties = readProperties file: 'destiny-installer/dependency-management-helper/gradle.properties'
+        jdkPath = (isUnix() ? '/opt/' : 'C:/') + (gradleProperties['sourceCompatibility'] == '11' ? 'jdk-11.0.9+11' : 'jdk8u272-b10')
+    }
+    withEnv(["DESTINY_OPENAZ_NODEJS_SRC_TREE_ROOT=${workspaceDir}/source_destiny-openaz-nodejs_Nimbus_release_8.7.0",
+             "JAVA_HOME=${jdkPath}",
+             "NLEXTERNALDIR=${sharedStorage}/build/P4/source_external",
+             "NLEXTERNALDIR2=${sharedStorage}/build/P4/source_main_external"
+    ]) {
+        stage('Build') {
+            buildScriptFileName = 'buildPcv'
+            if (params.BRANCH.startsWith('release') || params.BRANCH.startsWith('hotfix')) {
+                buildScriptFileName = 'buildRelease'
+            }
+            dir('destiny-installer') {
+                sh "chmod +x ./${buildScriptFileName} && source ./setEnv && ./${buildScriptFileName}"
+            }
+        }
+    }
+}

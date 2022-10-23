@@ -1,0 +1,80 @@
+node {
+    def npmPath = 'C:/Program Files/nodejs/npm.cmd'
+    def ngPath = 'C:/Users/build-op/AppData/Roaming/npm/ng.cmd'
+
+    properties([
+            pipelineTriggers([upstream('cc-artifactory-publisher')]),
+            parameters([
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'SERVER_APPS_BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*destiny-serverapps.git'
+                    ),
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'UI_BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*destiny-ui.git'
+                    )
+            ])
+    ])
+    stage('Clone Server Apps') {
+        dir('destiny-serverapps') {
+            git branch: "${params.SERVER_APPS_BRANCH}", credentialsId: 'bitbucket-build-op', url: 'git@bitbucket.org:nxtlbs-devops/destiny-serverapps.git'
+        }
+    }
+    stage('Clone UI') {
+        dir('destiny-ui') {
+            git branch: "${params.UI_BRANCH}", credentialsId: 'bitbucket-build-op', url: 'git@bitbucket.org:nxtlbs-devops/destiny-ui.git'
+        }
+    }
+    stage('Build') {
+        def gradleProperties = readProperties file: 'destiny-serverapps/src/server/apps/gradle.properties'
+        def jdkPath = (isUnix() ? '/opt/' : 'C:/') + (gradleProperties['sourceCompatibility'] == '11' ? 'jdk-11.0.9+11' : 'jdk8u272-b10')
+        dir('destiny-serverapps/src/server/apps') {
+            sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${jdkPath} -PngPath=\"${ngPath}\" -PnpmPath=\"${npmPath}\" -PbuildNumber=${env.BUILD_NUMBER} clean build"
+        }
+    }
+    stage('SonarQube') {
+        def sonarQubeJdkPath = (isUnix() ? '/opt/' : 'C:/') + 'jdk-11.0.9+11'
+        dir('destiny-serverapps/src/server/apps') {
+            try {
+                sh "chmod +x ./gradlew && ./gradlew -x test -Dorg.gradle.java.home=${sonarQubeJdkPath} sonarqube"
+            } catch (Exception e) {
+                echo "Error in running SonarQube"
+            }
+        }
+    }
+    stage('Publish') {
+        buildPublishLocation = null
+        if (params.SERVER_APPS_BRANCH == 'develop') {
+            buildPublishLocation = 's:/build/pcv'
+        } else if (params.SERVER_APPS_BRANCH.startsWith('release') || params.SERVER_APPS_BRANCH.startsWith('hotfix')) {
+            buildPublishLocation = 's:/build/release_candidate'
+        } else if(params.SERVER_APPS_BRANCH.startsWith('feature')) {
+            buildPublishLocation = 's:/build/feature'
+        }
+        if (buildPublishLocation != null) {
+            dir('destiny-serverapps/src/server/apps') {
+                sh "./gradlew -x test -PbuildPublishLocation=${buildPublishLocation} -PbuildNumber=${env.BUILD_NUMBER} publishBuild"
+            }
+        }
+    }
+}

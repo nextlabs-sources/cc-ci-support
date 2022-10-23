@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Test",
+    "environments": [
+      {
+        "host": "10.23.58.116",
+        "port": "22",
+        "username": "nextlabs",
+        "password": "123blue!",
+        "rootPassword": "123blue!",
+        "path": "/home/nextlabs/test",
+        "description": "Test Environment"
+      }
+    ]
+  }
+]

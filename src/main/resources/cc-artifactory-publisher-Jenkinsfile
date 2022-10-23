@@ -1,0 +1,32 @@
+node {
+    def workspaceDir = 'D:/Jenkins/workspace'
+    properties([
+            pipelineTriggers([upstream('cc-base')]),
+            parameters([
+                    gitParameter(
+                            branch: '',
+                            branchFilter: 'origin/(develop|feature/.*|release/.*|hotfix/.*)',
+                            defaultValue: 'develop',
+                            description: 'Git branch to build',
+                            listSize: '10',
+                            name: 'BRANCH',
+                            quickFilterEnabled: true,
+                            selectedValue: 'DEFAULT',
+                            sortMode: 'ASCENDING',
+                            tagFilter: '*',
+                            type: 'PT_BRANCH',
+                            useRepository: '.*artifactory-publisher.git'
+                    )
+               ])
+    ])
+    stage('Clone Artifactory Publisher') {
+        dir('artifactory-publisher') {
+            git branch: "${params.BRANCH}", credentialsId: 'bitbucket-build-op', url: 'git@bitbucket.org:nxtlbs-devops/artifactory-publisher.git'
+        }
+    }
+    stage('Publish') {
+        dir('artifactory-publisher') {
+            sh "chmod +x ./gradlew && ./gradlew -PbuildArtifactsFolder=\"${workspaceDir}/cc-base/destiny-base/build\" publishToArtifactory "
+        }
+    }
+}
